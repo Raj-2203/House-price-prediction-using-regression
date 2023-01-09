@@ -1,0 +1,246 @@
+---
+title: "House price prediction using regression analysis"
+author: "RAJ KHANDAGALE ( 215280002)"
+date: "15/12/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# House price prediction using regression analysis 
+
+
+
+## All About Dataset 
+Name of Dataset :- Real Estate data 
+Source :- https://www.kaggle.com/dcw8161/real-estate-price-prediction/data
+Variables :- 1) X1 transaction date (Date at which home is bought)
+             2) X2 house age (age of house from when it was built)
+             3) X3 distance to the nearest MRT station
+             4) X4 number of convenient stores
+             5) X5 latitude ( represents the geographical position of property)
+             6) X6 longitude ( represents geographical position of property )
+             7) Y house price of unit area
+      
+Dimensions :- 414 × 8       
+
+#Problem statement :
+
+
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+setwd("C:/Users/HP/Desktop/Real estate data")
+```
+
+### Reading the data as Real_df
+
+
+```{r}
+Real_df=read.csv('Real estate.csv' , header=TRUE)
+head(Real_df)
+```
+
+```{r}
+str(Real_df)
+```
+
+```{r}
+dim(Real_df)
+```
+
+```{r}
+summary(Real_df)
+```
+
+```{r}
+sum(is.na(Real_df))
+```
+our data doesn't contain any N.A. values hence it is good to define a linear regression model
+
+# model fitting 
+
+##### baseline model 
+```{r}
+model1=lm(Y.house.price.of.unit.area~. , Real_df)
+summary(model1)
+```
+considering a level of significance to be 1% 
+It is found that No is just a observation number and also found to be insignificant for prediction of house price of unit area
+so we define new model after removing ${\bf No. }$
+
+###### Asumptions testing
+```{r}
+library(ggplot2)
+library(ggfortify)
+autoplot(model1)
+```
+### testing normality 
+```{r}
+shapiro.test(Real_df$Y.house.price.of.unit.area)
+```
+our response is not normally distributed 
+
+
+```{r}
+y=Real_df$Y.house.price.of.unit.area
+z=sqrt(y)
+shapiro.test(z)
+```
+at 1% l.o.s. our z=sqrt(y) satisfies normality so we will take z as response variable
+
+#### testing homscedasticity 
+
+```{r}
+library(lmtest)
+bptest(model1)
+```
+since p value is larger than tha 0.05 so we fail to reject the null hypothesis that data is homoscedastic. So data is homoscedastic. 
+
+#### testing  multicolinearity
+
+```{r}
+library(mctest)
+mctest(model1)
+```
+by determinant test we can say that multicolinearity is not detected in the model 
+still for further diagnosis we can check VIF 
+
+```{r}
+library(carData)
+library(car)
+vif(model1)
+```
+since VIF for all the predictors is less than 5 so we can conclude that multicolinearity is not present in our current model 
+
+
+
+
+### Model 2 
+```{r}
+y=Real_df$Y.house.price.of.unit.area
+x1=Real_df$X1.transaction.date
+x2=Real_df$X2.house.age
+x3=Real_df$X3.distance.to.the.nearest.MRT.station
+x4=Real_df$X4.number.of.convenience.stores
+x5=Real_df$X5.latitude
+x6=Real_df$X6.longitude
+z=sqrt(y)
+df=data.frame(z,x1,x2,x3,x4,x5,x6)
+head(df)
+```
+
+
+```{r}
+model2=lm(z~. , df)
+summary(model2)
+```
+##### latitude(x6) found to be insignificant using p value criteria and threshold to be 5% but longitude (x5) was found significant but both together show location and single variable doesnt have a meaning so we will discard both the variables.
+
+
+```{r}
+model3=lm(z~.-x5-x6,df)
+summary(model3)
+```
+
+```{r}
+library(ggplot2)
+library(ggfortify)
+autoplot(model3)
+```
+
+
+#### Interaction terms 
+
+```{r}
+library(corrplot)
+corrplot(cor(df),type="upper",method="circle",title="Correlation plot between variables",
+         mar=c(0.7,0.7,0.7,0.7),tl.cex = 0.6)
+```
+
+
+```{r}
+print(paste("from corrplot we can see that among the variables present in the model x3(distance to nearest MRT station) & x4(no of stores near to the house) has correlation between" , round(cor(x3,x4),2)))
+```
+
+since the correlation between x3 and x4 is high we will add the interaction term of x3 and x4 in the model
+and also we will add higher powers of x2 and x3 so as to obtain more efficient model
+```{r}
+model4=lm(z~.-x5-x6+x3:x4+I(x3^2)+I(x2^3),df)
+summary(model4)
+```
+```{r}
+autoplot(model4)
+```
+so our current model has 67% accuracy with interaction terms of predictors and higher powers of predictor
+
+
+```{r}
+library(olsrr)
+ols_plot_cooksd_chart(model4)
+```
+
+```{r}
+ols_plot_dffits(model4)
+```
+20 observations are found to be outlier using Cook's D
+
+```{r}
+df1=df[-c(48,56,114,117,127,129,149,193,221,229,234,252,271,274,313,331,345,348,362,390),]
+```
+
+```{r}
+df1
+```
+```{r}
+model5=lm(z~.-x5-x6+x3:x4+I(x3^2)+I(x2^3),df1)
+summary(model5)
+```
+```{r}
+autoplot(model5)
+```
+since interaction term found to be insignificant in model 5 after removing outliers from the model so we will remove that and define final model
+
+```{r}
+final=lm(z~.-x5-x6+I(x3^2)+I(x2^3),df1)
+summary(final)
+```
+
+
+
+since value of ${\bf R-Squared }$ is 78.24 % we conclude that Final is our  Final model
+
+
+```{r}
+library(formattable)
+formattable(final$coefficients)
+```
+
+## Final model is 
+$$
+z=-825.8+0.4138\times\text{X}_{1}-0.04552\times\text{X}_{2}-0.00113\times\text{X}_{3}+0.0585\times\text{X}_{4}+1.48e-05\times \text I(\text{X}_{2}^3)+ 1.337e-07\times \text I(\text{X}_{3}^2)
+$$
+## Conclusion of the final model: 
+
+1)Detected outliers in the model using Cook's D and removed them from dataset
+2) From the residual vs fitted graph we can see that the estimated error curve of our final model is almost converge to 0.
+3) From the QQ-Plot we can see that the our model behaves like normal except for the tail parts.
+4) homoscedasticity is satisfied by the variance of residuals
+5) Multi-co-linearity is not present in the final model 
+6) residuals follow normal distribution with constant variance 
+7) From value of $$ \text{R}^2 $$ we can conclude that final model predicts the house price per unit area ($) with 78.24% accuracy
+8)Only following predictors are responsible for predicting house price 
+             i) X1 transaction date (Date at which home is bought)
+            ii) X2 house age (age of house from when it was built)
+           iii) X3 distance to the nearest MRT station
+            iv) X4 number of convenient stores from house
+
+
